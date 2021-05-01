@@ -32,15 +32,16 @@ class DLSite_Product:
         self._img_links = []
         self._rank = {}
         self._info = {}
-        self._update_log = []
+        self._update_logs = []
 
-        self.soup = None
+        self._soup = None
+        self._product_rest = None
 
         if not lazy:
             self.update()
 
     def update(self):
-        self.soup = self.get_soup(update=True)
+        self._soup = self.get_soup(update=True)
 
         self.name = self.extract_name()
         _maker_url, _maker_name = self.extract_maker()
@@ -267,8 +268,7 @@ class DLSite_Product:
         return self._rank
 
     def extract_rank(self) -> dict:
-        product_rest = json.loads(self.get_product_rest_json())
-        product_rest = product_rest[self.id]
+        product_rest = self.get_product_rest()
 
         rate: float = product_rest["rate_average_2dp"]
         rate_detail = [
@@ -300,30 +300,44 @@ class DLSite_Product:
         return self._info
 
     @property  # of update_log
-    def update_log(self):
-        return self._update_log
+    def update_logs(self) -> list:
+        if not self._update_logs:
+            self._update_logs = self.extract_update_logs()
+        return self._update_logs
+
+    def extract_update_logs(self) -> list:
+        pass
 
     # TODO
-    def get_content(self, url: str = None) -> bytes:
+    def get_content(
+        self,
+        url: str = None,
+        method: str = "GET",
+        headers: dict = {},
+        params: dict = {},
+    ) -> bytes:
         if not url:
             url = f"{BASE_URL}/maniax/work/=/product_id/{self.id}"
-        resp = requests.get(url)
+
+        resp = requests.request(method, url, headers=headers, params=params)
         if resp.ok and resp.content:
             return resp.content
         else:
             raise ValueError
 
-    def get_product_rest_json(self) -> bytes:
-        url = (
-            f"{BASE_URL}/maniax/product/info/ajax?product_id={self.id}&cdn_cache_min=1"
-        )
-        return self.get_content(url)
+    def get_product_rest(self, update: bool = False) -> dict:
+        if not (self._product_rest) or update:
+            url = f"{BASE_URL}/maniax/product/info/ajax?product_id={self.id}"
+            resp = self.get_content(url)
+            product_json = json.loads(resp)
+            self._product_rest: dict = product_json[self.id]
+        return self._product_rest
 
     def get_soup(self, content: bytes = None, update: bool = False) -> BeautifulSoup:
-        if not (self.soup) or content or update:
+        if not (self._soup) or content or update:
             content = content if content else self.get_content()
-            self.soup = BeautifulSoup(content, "lxml")
-        return self.soup
+            self._soup = BeautifulSoup(content, "lxml")
+        return self._soup
 
     def _get_select_work_outline_soup(
         self, soup: BeautifulSoup, select_keyword: str
