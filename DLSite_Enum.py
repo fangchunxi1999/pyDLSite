@@ -27,6 +27,7 @@ class DLSite_Type(Enum):
     MUSIC = auto()
     MATERIAL = auto()
     OTHER = auto()
+    ALL = auto()
 
 
 DLSite_Type_Info = {
@@ -34,6 +35,7 @@ DLSite_Type_Info = {
     DLSite_Type.GAME: {
         "name": "ゲーム",
         "keyword": {
+            "ETC": "その他ゲーム",
             "ACN": "アクション",
             "QIZ": "クイズ",
             "ADV": "アドベンチャー",
@@ -44,18 +46,22 @@ DLSite_Type_Info = {
             "TYP": "タイピング",
             "STG": "シューティング",
             "PZL": "パズル",
-            "ETC": "その他ゲーム",
+            "_GAME": "ゲーム・動画",
         },
     },
-    DLSite_Type.COMIC: {"name": "マンガ", "keyword": {"MNG": "マンガ"}},
+    DLSite_Type.COMIC: {"name": "マンガ", "keyword": {"MNG": "マンガ", "_COMIC": "マンガ・CG"}},
     DLSite_Type.CG_ART: {"name": "CG・イラスト", "keyword": {"ICG": "CG・イラスト"}},
     DLSite_Type.NOVEL: {"name": "ノベル", "keyword": {"NRE": "ノベル"}},
     DLSite_Type.ANIMATION: {"name": "動画", "keyword": {"MOV": "動画"}},
-    DLSite_Type.VOICE: {"name": "ボイス・ASMR", "keyword": {"SOU": "ボイス・ASMR"}},
+    DLSite_Type.VOICE: {
+        "name": "ボイス・ASMR",
+        "keyword": {"SOU": "ボイス・ASMR", "_VOICE": "ボイス・ASMR"},
+    },
     DLSite_Type.MUSIC: {"name": "音楽", "keyword": {"MUS": "音楽"}},
     DLSite_Type.MATERIAL: {
         "name": "ツール/アクセサリ",
         "keyword": {"TOL": "ツール/アクセサリ", "IMT": "画像素材", "AMT": "音素材"},
     },
     DLSite_Type.OTHER: {"name": "その他", "keyword": {"ET3": "その他", "VCM": "ボイスコミック"}},
+    DLSite_Type.ALL: {"name": "総合", "keyword": {"_ALL": "総合"}},
 }

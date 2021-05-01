@@ -1,15 +1,16 @@
+import json
+import re
 from datetime import datetime
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import requests
 from bs4 import BeautifulSoup
 
+import util
 from DLSite_Enum import DLSite_Rate, DLSite_Rate_Info, DLSite_Type, DLSite_Type_Info
 from DLSite_Maker import DLSite_Maker
 
-import util
-
-BASE_URL = "www.dlsite.com"
+BASE_URL = "https://www.dlsite.com"
 
 
 class DLSite_Product:
@@ -21,7 +22,7 @@ class DLSite_Product:
         self._name = ""
         self._maker = None
 
-        self._date = datetime.utcfromtimestamp(0)
+        self._date = None
         self._size = -1
         self._type = (DLSite_Type.UNKNOWN, "")
         self._rate = DLSite_Rate.UNKNOWN
@@ -113,7 +114,8 @@ class DLSite_Product:
         date_soup = self._get_select_work_outline_soup(soup, "販売日")
         date_str = date_soup.get_text(strip=True) if date_soup else ""
         if date_str:
-            return datetime.strptime(date_str, "%Y年%m月%d日")
+            year, month, day = re.match(r"(\d{4})年(\d{2})月(\d{2})日", date_str).groups()
+            return datetime(year=int(year), month=int(month or 1), day=int(day or 1))
         return datetime.utcfromtimestamp(0)
 
     @property  # of self.size
@@ -202,26 +204,92 @@ class DLSite_Product:
                     break
         return rate
 
-    # TODO
+    # TODO That sh*t is big
     @property  # of description
     def description(self) -> str:
         return self._description
 
     @property  # of tags
-    def tags(self) -> list:
+    def tags(self) -> List[Dict[str, Union[int, str]]]:
+        if not self._tags:
+            self._tags = self.extract_tags()
         return self._tags
 
-    def extract_tags(self):
+    @tags.setter
+    def tags(self, tags: List[Dict[str, Union[int, str]]]):
+        self._tags = tags
+
+    def extract_tags(self) -> List[Dict[str, Union[int, str]]]:
         soup = self.get_soup()
         tags_soup = self._get_select_work_outline_soup(soup, "ジャンル")
+        tags = []
+        for a in tags_soup.find_all("a") if tags_soup else []:
+            try:
+                tag_name: str = a.get_text(strip=True)
+                tag_id: int = int(re.findall(r"\d{3}", a["href"])[0])
+                tags.append({"id": tag_id, "name": tag_name})
+            except (KeyError, IndexError, AttributeError):
+                continue
+
+        return tags
 
     @property  # of img_links
     def img_links(self) -> List[str]:
+        if not self._img_links:
+            self._img_links = self.extract_img_links()
         return self._img_links
 
+    @img_links.setter
+    def img_links(self, img_links: List[str]):
+        self._img_links = img_links
+
+    def extract_img_links(self) -> List[str]:
+        soup = self.get_soup()
+        img_links_soup = soup.find(class_="product-slider-data")
+        img_links = []
+        for div in img_links_soup.find_all("div") if img_links_soup else []:
+            try:
+                link: str = div["data-src"].strip("//")
+                img_links.append(link)
+            except (KeyError, AttributeError):
+                continue
+
+        return img_links
+
     @property  # of rank
-    def rank(self):
+    def rank(self) -> dict:
+        if not self._rank:
+            self._rank = self.extract_rank()
         return self._rank
+
+    def extract_rank(self) -> dict:
+        product_rest = json.loads(self.get_product_rest_json())
+        product_rest = product_rest[self.id]
+
+        rate: float = product_rest["rate_average_2dp"]
+        rate_detail = [
+            {"star": s["review_point"], "count": s["count"]}
+            for s in product_rest["rate_count_detail"]
+        ]
+
+        rankings = []
+        for r in product_rest["rank"]:
+            _type, _ = self._extract_type("_" + r["category"])
+            year, month, day = re.match(
+                r"(\d{4})-?(\d{2})?-?(\d{2})?", r["rank_date"]
+            ).groups()
+            rankings.append(
+                {
+                    "term": r["term"],
+                    "category": _type,
+                    "rank_date": datetime(
+                        year=int(year), month=int(month or 1), day=int(day or 1)
+                    ),
+                }
+            )
+
+        rank = {"rankings": rankings, "rate": rate, "rate_detail": rate_detail}
+        return rank
 
     @property  # of info
     def info(self):
@@ -231,13 +299,21 @@ class DLSite_Product:
     def update_log(self):
         return self._update_log
 
-    def get_content(self) -> bytes:
-        url = f"https://{BASE_URL}/maniax/work/=/product_id/{self.id}"
+    # TODO
+    def get_content(self, url: str = None) -> bytes:
+        if not url:
+            url = f"{BASE_URL}/maniax/work/=/product_id/{self.id}"
         resp = requests.get(url)
         if resp.ok and resp.content:
             return resp.content
         else:
             raise ValueError
+
+    def get_product_rest_json(self) -> bytes:
+        url = (
+            f"{BASE_URL}/maniax/product/info/ajax?product_id={self.id}&cdn_cache_min=1"
+        )
+        return self.get_content(url)
 
     def get_soup(self, content: bytes = None, update: bool = False) -> BeautifulSoup:
         if not (self.soup) or content or update:
