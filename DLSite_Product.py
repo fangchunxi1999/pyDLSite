@@ -81,6 +81,10 @@ class DLSite_Product:
     def maker(self, maker: DLSite_Maker):
         self._maker = maker
 
+    @property
+    def maker_name(self) -> str:
+        return self.get_maker_name()
+
     def get_maker_name(self) -> str:
         return self.maker.get_name() if self.maker else ""
 
