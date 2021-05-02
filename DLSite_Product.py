@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Tuple, Union
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 import util
 from DLSite_Enum import DLSite_Rate, DLSite_Rate_Info, DLSite_Type, DLSite_Type_Info
@@ -256,7 +256,7 @@ class DLSite_Product:
         for div in img_links_soup.find_all("div") if img_links_soup else []:
             try:
                 link: str = div["data-src"].strip("//")
-                img_links.append(link)
+                img_links.append("https://" + link)
             except (KeyError, AttributeError):
                 continue
 
@@ -271,14 +271,14 @@ class DLSite_Product:
     def extract_rank(self) -> dict:
         product_rest = self.get_product_rest()
 
-        rate: float = product_rest["rate_average_2dp"]
+        rate: float = product_rest["rate_average_2dp"] or 0.0
         rate_detail = [
             {"star": s["review_point"], "count": s["count"]}
             for s in product_rest["rate_count_detail"]
         ]
 
         rankings = []
-        for r in product_rest["rank"]:
+        for r in product_rest["rank"] if product_rest["rank"] else []:
             _type, _ = self._extract_type("_" + r["category"])
             year, month, day = re.match(
                 r"(\d{4})-?(\d{2})?-?(\d{2})?", r["rank_date"]
@@ -296,10 +296,81 @@ class DLSite_Product:
         rank = {"rankings": rankings, "rate": rate, "rate_detail": rate_detail}
         return rank
 
-    # TODO
     @property  # of info
-    def info(self):
+    def info(self) -> dict:
+        if not self._info:
+            self._info = self.extract_info()
         return self._info
+
+    def extract_info(self) -> dict:
+        product_info = {}
+
+        product_rest = self.get_product_rest()
+        price: int = product_rest["price"]
+        price_without_tax: int = product_rest["price_without_tax"]
+        original_price: int = product_rest.get("official_price", price)
+        is_sale = bool(product_rest["on_sale"])
+        sale_count = int(product_rest["dl_count"] or 0)
+        wishlist_count = int(product_rest["wishlist_count"] or 0)
+        product_info.update(
+            {
+                "is_sale": is_sale,
+                "price": price,
+                "price_without_tax": price_without_tax,
+                "original_price": original_price,
+                "sale_count": sale_count,
+                "wishlist_count": wishlist_count,
+            }
+        )
+
+        def get_link(soup: BeautifulSoup) -> Tuple[str, str]:
+            if type(soup) is NavigableString:
+                link = soup.strip(), ""
+            elif soup.name == "a":
+                link = soup.get_text(strip=True), soup["href"]
+            else:
+                link = get_link(next(soup.children))
+            return link
+
+        def unpack_div(soup: BeautifulSoup) -> List[BeautifulSoup]:
+            child_soup = [soup]
+            if type(soup) is NavigableString:
+                return child_soup
+            if soup.name != "div":
+                return child_soup
+            child_soup = []
+            for c in soup.children:
+                if type(c) is NavigableString and c.strip() == "":
+                    continue
+                child_soup.append(c)
+            return child_soup
+
+        soup = self.get_soup()
+        work_outline_soup = self._get_work_outline_soup(soup)
+        add_info = {}
+        for kw, s_soup in work_outline_soup.items():
+            if kw in ["販売日", "ファイル容量", "作品形式", "年齢指定", "ジャンル"]:
+                continue
+            kw_info = []
+            for div in s_soup.children:
+                if type(div) is NavigableString and div.strip() == "":
+                    continue
+                for info_soup in unpack_div(div):
+                    link_title, link = get_link(info_soup)
+                    if link_title in ["/"]:
+                        continue
+                    kw_info.append(
+                        {
+                            "title": re.sub(r"^[/ ]*|[/ ]*$", "", link_title),
+                            "link": link,
+                        }
+                    )
+
+            add_info.update({kw: kw_info})
+
+        product_info.update({"addition_info": add_info})
+
+        return product_info
 
     @property  # of update_log
     def update_logs(self) -> List[Dict[str, Any]]:
@@ -394,8 +465,10 @@ class DLSite_Product:
     def _get_select_work_outline_soup(
         self, soup: BeautifulSoup, select_keyword: str
     ) -> Union[BeautifulSoup, None]:
-        select_soup = None
+        return self._get_work_outline_soup(soup).get(select_keyword, None)
+
+    def _get_work_outline_soup(self, soup: BeautifulSoup) -> Dict[str, BeautifulSoup]:
+        work_outline_soup = {}
         for tr in soup.find(id="work_outline").find_all("tr"):
-            if tr.th.get_text(strip=True) == select_keyword:
-                select_soup = tr.td
-        return select_soup
+            work_outline_soup.update({tr.th.get_text(strip=True): tr.td})
+        return work_outline_soup
