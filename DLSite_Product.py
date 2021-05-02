@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,7 +35,7 @@ class DLSite_Product:
         self._update_logs = []
 
         self._soup = None
-        self._product_rest = None
+        self._product_rest = {}
 
         if not lazy:
             self.update()
@@ -300,13 +300,36 @@ class DLSite_Product:
         return self._info
 
     @property  # of update_log
-    def update_logs(self) -> list:
+    def update_logs(self) -> List[Dict[str, Any]]:
         if not self._update_logs:
             self._update_logs = self.extract_update_logs()
         return self._update_logs
 
-    def extract_update_logs(self) -> list:
-        pass
+    def extract_update_logs(self) -> List[Dict[str, Any]]:
+        update_logs = []
+        # For First update logs page
+        soup = self.get_soup()
+        update_soup = soup.find(class_="work_article version_up")
+        for li in update_soup.find_all("li") if update_soup else []:
+            if not li:
+                continue
+            try:
+                _log = li.dl.find_all(re.compile(r"^d"))
+                year, month, day = re.match(
+                    r"(\d{4})年(\d{2})月(\d{2})日", _log[0].get_text(strip=True)
+                ).groups()
+                update_date = datetime(
+                    year=int(year), month=int(month or 1), day=int(day or 1)
+                )
+                update_type = [s.get_text(strip=True) for s in _log[1].find_all("span")]
+                update_detail = _log[2].get_text(strip=True)
+            except (KeyError, IndexError, AttributeError):
+                continue
+            update_logs.append(
+                {"date": update_date, "type": update_type, "detail": update_detail}
+            )
+
+        return update_logs
 
     # TODO
     def get_content(
