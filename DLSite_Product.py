@@ -296,6 +296,7 @@ class DLSite_Product:
         rank = {"rankings": rankings, "rate": rate, "rate_detail": rate_detail}
         return rank
 
+    # TODO
     @property  # of info
     def info(self):
         return self._info
@@ -308,7 +309,7 @@ class DLSite_Product:
 
     def extract_update_logs(self) -> List[Dict[str, Any]]:
         update_logs = []
-        # For First update logs page
+        # For first update logs page
         soup = self.get_soup()
         update_soup = soup.find(class_="work_article version_up")
         for li in update_soup.find_all("li") if update_soup else []:
@@ -330,19 +331,45 @@ class DLSite_Product:
                 {"date": update_date, "type": update_type, "detail": update_detail}
             )
 
+        # For next update log page
+        if soup.find(class_="version_up_more"):
+            url = "https://www.dlsite.com/maniax/product/revision/ajax"
+            page = 2
+            while True:
+                params = {"act": "show", "product_id": self.id, "page": page}
+                content = self.get_content(url, method="POST", params=params)
+                content_json = json.loads(content)
+                for _log in content_json["list"]:
+                    year, month, day = re.match(
+                        r"(\d{4})年(\d{2})月(\d{2})日", _log["release_date"]
+                    ).groups()
+                    update_date = datetime(
+                        year=int(year), month=int(month or 1), day=int(day or 1)
+                    )
+                    update_type = _log["content_update_type"]
+                    update_detail = _log["info"]
+                    update_logs.append(
+                        {
+                            "date": update_date,
+                            "type": update_type,
+                            "detail": update_detail,
+                        }
+                    )
+
+                if not content_json["more"]:
+                    break
+                page += 1
+
         return update_logs
 
     # TODO
     def get_content(
         self,
-        url: str = None,
+        url: str,
         method: str = "GET",
         headers: dict = {},
         params: dict = {},
     ) -> bytes:
-        if not url:
-            url = f"{BASE_URL}/maniax/work/=/product_id/{self.id}"
-
         resp = requests.request(method, url, headers=headers, params=params)
         if resp.ok and resp.content:
             return resp.content
@@ -352,14 +379,15 @@ class DLSite_Product:
     def get_product_rest(self, update: bool = False) -> dict:
         if not (self._product_rest) or update:
             url = f"{BASE_URL}/maniax/product/info/ajax?product_id={self.id}"
-            resp = self.get_content(url)
-            product_json = json.loads(resp)
+            content = self.get_content(url)
+            product_json = json.loads(content)
             self._product_rest: dict = product_json[self.id]
         return self._product_rest
 
     def get_soup(self, content: bytes = None, update: bool = False) -> BeautifulSoup:
         if not (self._soup) or content or update:
-            content = content if content else self.get_content()
+            url = f"{BASE_URL}/maniax/work/=/product_id/{self.id}"
+            content = content if content else self.get_content(url)
             self._soup = BeautifulSoup(content, "lxml")
         return self._soup
 
