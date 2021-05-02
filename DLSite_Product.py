@@ -24,7 +24,8 @@ class DLSite_Product:
 
         self._date = None
         self._size = -1
-        self._type = (DLSite_Type.UNKNOWN, "")
+        self._type = DLSite_Type.UNKNOWN
+        self._type_kw = ""
         self._rate = DLSite_Rate.UNKNOWN
 
         self._description = ""
@@ -141,26 +142,26 @@ class DLSite_Product:
 
     @property  # of self.product_type
     def product_type(self) -> DLSite_Type:
-        if self._type[0] == DLSite_Type.UNKNOWN:
-            self._type = self.extract_type()
-        return self._type[0]
+        if self._type == DLSite_Type.UNKNOWN:
+            self._type, self._type_kw = self.extract_type()
+        return self._type
 
     @product_type.setter
     def product_type(self, product_type: DLSite_Type):
-        self._type = (
+        self._type, self._type_kw = (
             product_type,
             str(list(DLSite_Type_Info[product_type]["keyword"].gets())[0]),
         )
 
     @property  # of self.product_type_keyword
     def product_type_keyword(self) -> str:
-        if not self._type[1]:
-            self._type = self.extract_type()
-        return self._type[1]
+        if not self._type:
+            self._type, self._type_kw = self.extract_type()
+        return self._type_kw
 
     @product_type_keyword.setter
     def product_type_keyword(self, product_type_keyword: str):
-        self._type = self._extract_type(product_type_keyword)
+        self._type, self._type_kw = self._extract_type(product_type_keyword)
 
     def extract_type(self) -> Tuple[DLSite_Type, str]:
         soup = self.get_soup()
