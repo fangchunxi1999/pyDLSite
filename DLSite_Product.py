@@ -213,7 +213,13 @@ class DLSite_Product:
     # TODO That sh*t is big
     @property  # of description
     def description(self) -> str:
+        if not self._description:
+            self._description = self.extract_description()
         return self._description
+
+    def extract_description(self) -> str:
+
+        return ""
 
     @property  # of tags
     def tags(self) -> List[Dict[str, Union[int, str]]]:
@@ -302,7 +308,7 @@ class DLSite_Product:
             self._info = self.extract_info()
         return self._info
 
-    def extract_info(self) -> dict:
+    def extract_info(self) -> Dict[str, Any]:
         product_info = {}
 
         product_rest = self.get_product_rest()
@@ -323,6 +329,11 @@ class DLSite_Product:
             }
         )
 
+        product_info.update({"addition_info": self.extract_addition_info()})
+
+        return product_info
+
+    def extract_addition_info(self) -> Dict[str, list]:
         def get_link(soup: BeautifulSoup) -> Tuple[str, str]:
             if type(soup) is NavigableString:
                 link = soup.strip(), ""
@@ -368,9 +379,7 @@ class DLSite_Product:
 
             add_info.update({kw: kw_info})
 
-        product_info.update({"addition_info": add_info})
-
-        return product_info
+        return add_info
 
     @property  # of update_log
     def update_logs(self) -> List[Dict[str, Any]]:
@@ -404,32 +413,38 @@ class DLSite_Product:
 
         # For next update log page
         if soup.find(class_="version_up_more"):
-            url = "https://www.dlsite.com/maniax/product/revision/ajax"
-            page = 2
-            while True:
-                params = {"act": "show", "product_id": self.id, "page": page}
-                content = self.get_content(url, method="POST", params=params)
-                content_json = json.loads(content)
-                for _log in content_json["list"]:
-                    year, month, day = re.match(
-                        r"(\d{4})年(\d{2})月(\d{2})日", _log["release_date"]
-                    ).groups()
-                    update_date = datetime(
-                        year=int(year), month=int(month or 1), day=int(day or 1)
-                    )
-                    update_type = _log["content_update_type"]
-                    update_detail = _log["info"]
-                    update_logs.append(
-                        {
-                            "date": update_date,
-                            "type": update_type,
-                            "detail": update_detail,
-                        }
-                    )
+            update_logs += self.extract_update_more_logs()
 
-                if not content_json["more"]:
-                    break
-                page += 1
+        return update_logs
+
+    def extract_update_more_logs(self) -> List[Dict[str, Any]]:
+        update_logs = []
+        url = "https://www.dlsite.com/maniax/product/revision/ajax"
+        page = 2
+        while True:
+            params = {"act": "show", "product_id": self.id, "page": page}
+            content = self.get_content(url, method="POST", params=params)
+            content_json = json.loads(content)
+            for _log in content_json["list"]:
+                year, month, day = re.match(
+                    r"(\d{4})年(\d{2})月(\d{2})日", _log["release_date"]
+                ).groups()
+                update_date = datetime(
+                    year=int(year), month=int(month or 1), day=int(day or 1)
+                )
+                update_type = _log["content_update_type"]
+                update_detail = _log["info"]
+                update_logs.append(
+                    {
+                        "date": update_date,
+                        "type": update_type,
+                        "detail": update_detail,
+                    }
+                )
+
+            if not content_json["more"]:
+                break
+            page += 1
 
         return update_logs
 
