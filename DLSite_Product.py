@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple, Union
 
 import requests
 from bs4 import BeautifulSoup, NavigableString
+from markdownify import markdownify
 
 import util
 from DLSite_Enum import DLSite_Rate, DLSite_Rate_Info, DLSite_Type, DLSite_Type_Info
@@ -210,16 +211,31 @@ class DLSite_Product:
                     break
         return rate
 
-    # TODO That sh*t is big
     @property  # of description
     def description(self) -> str:
         if not self._description:
             self._description = self.extract_description()
         return self._description
 
-    def extract_description(self) -> str:
+    @description.setter
+    def description(self, desc_md: str):
+        self._description = desc_md
 
-        return ""
+    def extract_description(self) -> str:
+        soup = self.get_soup()
+        desc_soup = soup.find(class_="work_parts_container")
+        desc_soup_list: List[BeautifulSoup] = []
+        for child in desc_soup.children:
+            if type(child) is NavigableString and child.strip() == "":
+                continue
+            desc_soup_list += self._unpack_div(child)
+        desc_markdown_list: List[str] = []
+        for d_soup in desc_soup_list:
+            md = markdownify(str(d_soup))
+            md = md.replace("(//", "(https://")
+            desc_markdown_list.append(md)
+        desc_markdown = "".join(desc_markdown_list)
+        return desc_markdown
 
     @property  # of tags
     def tags(self) -> List[Dict[str, Union[int, str]]]:
@@ -343,19 +359,6 @@ class DLSite_Product:
                 link = get_link(next(soup.children))
             return link
 
-        def unpack_div(soup: BeautifulSoup) -> List[BeautifulSoup]:
-            child_soup = [soup]
-            if type(soup) is NavigableString:
-                return child_soup
-            if soup.name != "div":
-                return child_soup
-            child_soup = []
-            for c in soup.children:
-                if type(c) is NavigableString and c.strip() == "":
-                    continue
-                child_soup.append(c)
-            return child_soup
-
         soup = self.get_soup()
         work_outline_soup = self._get_work_outline_soup(soup)
         add_info = {}
@@ -366,7 +369,7 @@ class DLSite_Product:
             for div in s_soup.children:
                 if type(div) is NavigableString and div.strip() == "":
                     continue
-                for info_soup in unpack_div(div):
+                for info_soup in self._unpack_div(div):
                     link_title, link = get_link(info_soup)
                     if link_title in ["/"]:
                         continue
@@ -487,3 +490,18 @@ class DLSite_Product:
         for tr in soup.find(id="work_outline").find_all("tr"):
             work_outline_soup.update({tr.th.get_text(strip=True): tr.td})
         return work_outline_soup
+
+    def _unpack_div(self, soup: BeautifulSoup) -> List[BeautifulSoup]:
+        if type(soup) is NavigableString:
+            return [soup]
+        children_list = []
+        for child in soup.children:
+            if type(child) is NavigableString:
+                if child.strip() == "":
+                    continue
+                children_list.append(child)
+            elif child.name != "div":
+                children_list.append(child)
+            else:
+                children_list += self._unpack_div(child)
+        return children_list
