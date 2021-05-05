@@ -285,12 +285,16 @@ class DLSite_Product:
         return img_links
 
     @property  # of rank
-    def rank(self) -> dict:
+    def rank(self) -> Dict[str, Any]:
         if not self._rank:
             self._rank = self.extract_rank()
         return self._rank
 
-    def extract_rank(self) -> dict:
+    @rank.setter
+    def rank(self, rank: Dict[str, Any]):
+        self._rank = rank
+
+    def extract_rank(self) -> Dict[str, Any]:
         product_rest = self.get_product_rest()
 
         rate: float = product_rest["rate_average_2dp"] or 0.0
@@ -319,10 +323,14 @@ class DLSite_Product:
         return rank
 
     @property  # of info
-    def info(self) -> dict:
+    def info(self) -> Dict[str, Any]:
         if not self._info:
             self._info = self.extract_info()
         return self._info
+
+    @info.setter
+    def info(self, info: Dict[str, Any]):
+        self._info = info
 
     def extract_info(self) -> Dict[str, Any]:
         product_info = {}
@@ -389,6 +397,10 @@ class DLSite_Product:
         if not self._update_logs:
             self._update_logs = self.extract_update_logs()
         return self._update_logs
+
+    @update_logs.setter
+    def update_logs(self, update_logs: List[Dict[str, Any]]):
+        self._update_logs = update_logs
 
     def extract_update_logs(self) -> List[Dict[str, Any]]:
         update_logs = []
