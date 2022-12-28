@@ -1,7 +1,7 @@
 import re
 from typing import List, Tuple, Union
 
-REGEX_PREFIX = {"RJ": r"[Rr][Jj][0-9]{6}", "RG": r"[Rr][Gg][0-9]{5}"}
+REGEX_PREFIX = {"RJ": r"[Rr][Jj][0-9]{6,8}", "RG": r"[Rr][Gg][0-9]{5}"}
 
 
 def get_id_code(text: str, id_prefix: str) -> Union[str, None]:

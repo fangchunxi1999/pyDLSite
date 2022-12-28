@@ -444,8 +444,10 @@ class DLSite_Product:
         resp = requests.request(method, url, headers=headers, params=params)
         if resp.ok and resp.content:
             return resp.content
+        elif resp.status_code == 404:
+            raise ValueError("DLsite 404 Product Not Found.")
         else:
-            raise ValueError
+            raise ValueError("get_content requests Error.")
 
     def get_product_rest(self, update: bool = False) -> dict:
         if not (self._product_rest) or update:
